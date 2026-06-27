@@ -1,0 +1,403 @@
+const state = {
+  records: [],
+  expanded: new Set(),
+};
+
+const STATUS_CLASS = {
+  IN_PROGRESS: "badge-in-progress",
+  GENERATED: "badge-generated",
+  LOW: "badge-low",
+  FAILED: "badge-failed",
+  EDITED: "badge-edited",
+};
+
+const TAG_CLASS = {
+  IN_PROGRESS: "tag-warning",
+  GENERATED: "tag-success",
+  LOW: "tag-warning",
+  FAILED: "tag-danger",
+  EDITED: "tag-muted",
+};
+
+function $(id) {
+  return document.getElementById(id);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function formatTime(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+const IST_OPTIONS = {
+  timeZone: "Asia/Kolkata",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+};
+
+const UTC_OPTIONS = {
+  timeZone: "UTC",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+};
+
+function formatTimeWithIst(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return escapeHtml(value);
+
+  const ist = date.toLocaleString("en-IN", IST_OPTIONS);
+  const utc = date.toLocaleString("en-GB", UTC_OPTIONS);
+  return `
+    <div class="time-cell">
+      <div>${escapeHtml(ist)} IST</div>
+      <div class="time-sub">UTC ${escapeHtml(utc)}</div>
+    </div>
+  `;
+}
+
+function formatDateOnly(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" });
+}
+
+function badgeClass(status) {
+  return STATUS_CLASS[status] || "badge-unpaired";
+}
+
+function tagClass(status) {
+  return TAG_CLASS[status] || "tag-muted";
+}
+
+function rowKey(record) {
+  return record.reportRefId || "";
+}
+
+function billingPeriodLabel(record) {
+  const bp = record.billingPeriod;
+  if (!bp || typeof bp !== "object") return "—";
+  const start = formatDateOnly(bp.start);
+  const end = formatDateOnly(bp.end);
+  if (start === "—" && end === "—") return "—";
+  return `${start} → ${end}`;
+}
+
+function monitoringLabel(record) {
+  const minutes = record.monitoringMinutes;
+  const days = record.vitalsValidDays;
+  if (minutes == null && days == null) return "—";
+  const parts = [];
+  if (minutes != null) parts.push(`${minutes} min`);
+  if (days != null) parts.push(`${days} days vitals`);
+  return parts.join(" · ");
+}
+
+function toUtcIsoDate(dateStr, endOfDay = false) {
+  if (!dateStr) return "";
+  const suffix = endOfDay ? "T23:59:59Z" : "T00:00:00Z";
+  return `${dateStr}${suffix}`;
+}
+
+function buildQueryParams() {
+  const params = new URLSearchParams();
+  const status = $("status-filter").value;
+  const orgId = $("org-filter").value.trim();
+  const userId = $("user-filter").value.trim();
+  const reportRefId = $("report-filter").value.trim();
+  const fromDate = $("from-date").value;
+  const toDate = $("to-date").value;
+
+  if (status) params.append("filter", `status:${status}`);
+  if (orgId) params.append("filter", `organizationId:${orgId}`);
+  if (userId) params.append("filter", `userId:${userId}`);
+  if (reportRefId) params.append("filter", `reportRefId:${reportRefId}`);
+  if (fromDate || toDate) {
+    const start = toUtcIsoDate(fromDate || "1970-01-01");
+    const end = toUtcIsoDate(toDate || "2099-12-31", true);
+    params.append("datespan", `createdAt:${start}...${end}`);
+  }
+  params.append("order", "createdAt:desc");
+  params.append("limit", "2000");
+  return params;
+}
+
+async function loadConfig() {
+  try {
+    const res = await fetch("/api/config");
+    if (!res.ok) return;
+    const data = await res.json();
+    const notesPath = data.mdb_notes_path || "/api/dozee/notes/query";
+    $("mdb-endpoint-label").textContent = `MDB: ${data.mdb_endpoint}${notesPath}`;
+  } catch {
+    $("mdb-endpoint-label").textContent = "MDB: proxy unavailable";
+  }
+}
+
+async function loadRecords() {
+  $("error-banner").classList.add("hidden");
+  $("records-body").innerHTML = '<tr><td colspan="10" class="empty-row">Loading notes…</td></tr>';
+
+  try {
+    const res = await fetch(`/api/cpt-notes?${buildQueryParams().toString()}`);
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || `Request failed (${res.status})`);
+    }
+    state.records = Array.isArray(data) ? data : [];
+    state.expanded.clear();
+    render();
+    $("last-updated").textContent = `Updated ${new Date().toLocaleString()}`;
+  } catch (err) {
+    state.records = [];
+    $("error-banner").textContent = `Failed to load CPT notes: ${err.message}`;
+    $("error-banner").classList.remove("hidden");
+    $("records-body").innerHTML = '<tr><td colspan="10" class="empty-row">No data</td></tr>';
+    updateStats([]);
+    $("visible-count").textContent = "0 shown";
+  }
+}
+
+function filteredRecords() {
+  const search = $("search-input").value.trim().toLowerCase();
+
+  return state.records
+    .slice()
+    .sort((a, b) => {
+      const aTime = a.createdAt || "";
+      const bTime = b.createdAt || "";
+      return String(bTime).localeCompare(String(aTime));
+    })
+    .filter((record) => {
+      if (!search) return true;
+      const haystack = [
+        record.reportRefId,
+        record.mrn,
+        record.userId,
+        record.organizationId,
+        record.status,
+        record.failureReason,
+        record.activityId,
+        record.existingReportRefId,
+        record.s3Url,
+        record.htmlS3Url,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(search);
+    });
+}
+
+function updateStats(records) {
+  const counts = {
+    total: records.length,
+    IN_PROGRESS: 0,
+    GENERATED: 0,
+    LOW: 0,
+    FAILED: 0,
+  };
+  for (const record of records) {
+    const status = record.status;
+    if (status in counts) counts[status] += 1;
+  }
+  $("stat-total").textContent = counts.total;
+  $("stat-in-progress").textContent = counts.IN_PROGRESS;
+  $("stat-generated").textContent = counts.GENERATED;
+  $("stat-low").textContent = counts.LOW;
+  $("stat-failed").textContent = counts.FAILED;
+}
+
+function renderS3Link(label, uri) {
+  if (!uri) {
+    return `<div class="detail-row"><span class="muted">${escapeHtml(label)}</span><div>—</div></div>`;
+  }
+  return `
+    <div class="detail-row">
+      <span class="muted">${escapeHtml(label)}</span>
+      <div class="mono s3-uri">${escapeHtml(uri)}</div>
+    </div>
+  `;
+}
+
+function renderEditedBy(editedBy) {
+  if (!editedBy || typeof editedBy !== "object") return "—";
+  const parts = [editedBy.Name, editedBy.Email, editedBy.Id].filter(Boolean);
+  return parts.length ? escapeHtml(parts.join(" · ")) : escapeHtml(JSON.stringify(editedBy));
+}
+
+function renderEligibility(details) {
+  if (!details || typeof details !== "object") {
+    return '<p class="muted">No eligibility details</p>';
+  }
+  const rows = Object.entries(details)
+    .map(
+      ([key, value]) => `
+        <div class="detail-row">
+          <span class="muted">${escapeHtml(key)}</span>
+          <div>${escapeHtml(value ?? "—")}</div>
+        </div>
+      `
+    )
+    .join("");
+  return `<div class="detail-grid">${rows}</div>`;
+}
+
+function renderHistory(record) {
+  const history = Array.isArray(record.history) ? [...record.history].reverse() : [];
+  const historyBlock = history.length
+    ? `
+      <div class="history-panel">
+        <h3>History (${history.length} events)</h3>
+        <div class="timeline">${history
+          .map((entry) => {
+            const status = entry.status || "—";
+            const editedBy = entry.editedBy
+              ? `<div>Edited by: ${renderEditedBy(entry.editedBy)}</div>`
+              : "";
+            const htmlUrl = entry.htmlS3Url
+              ? `<div class="mono s3-uri">${escapeHtml(entry.htmlS3Url)}</div>`
+              : "";
+
+            return `
+              <div class="timeline-item timeline-item-cpt">
+                <div class="timeline-time">${formatTimeWithIst(entry.timestamp)}</div>
+                <div class="timeline-event">
+                  <span class="badge ${badgeClass(status)}">${escapeHtml(status)}</span>
+                </div>
+                <div class="timeline-detail">
+                  ${editedBy}
+                  ${htmlUrl}
+                </div>
+              </div>
+            `;
+          })
+          .join("")}</div>
+      </div>
+    `
+    : '<div class="history-panel"><p class="muted">No history entries</p></div>';
+
+  const detailsBlock = `
+    <div class="detail-panel">
+      <h3>Report Details</h3>
+      <div class="detail-grid">
+        <div class="detail-row">
+          <span class="muted">Activity ID</span>
+          <div class="mono">${escapeHtml(record.activityId || "—")}</div>
+        </div>
+        <div class="detail-row">
+          <span class="muted">Failure reason</span>
+          <div>${escapeHtml(record.failureReason || "—")}</div>
+        </div>
+        <div class="detail-row">
+          <span class="muted">Existing report ref</span>
+          <div class="mono">${escapeHtml(record.existingReportRefId || "—")}</div>
+        </div>
+        <div class="detail-row">
+          <span class="muted">Signing date</span>
+          <div>${formatTime(record.signingDate)}</div>
+        </div>
+      </div>
+      <h3 class="detail-subheading">S3 Locations</h3>
+      ${renderS3Link("DOCX (s3Url)", record.s3Url)}
+      ${renderS3Link("HTML cache (htmlS3Url)", record.htmlS3Url)}
+      ${renderS3Link("HTML source DOCX (htmlSourceDocxUrl)", record.htmlSourceDocxUrl)}
+      <h3 class="detail-subheading">Eligibility</h3>
+      ${renderEligibility(record.eligibilityDetails)}
+    </div>
+  `;
+
+  return historyBlock + detailsBlock;
+}
+
+function render() {
+  const records = filteredRecords();
+  updateStats(state.records);
+  $("visible-count").textContent = `${records.length} shown`;
+
+  if (!records.length) {
+    $("records-body").innerHTML = '<tr><td colspan="10" class="empty-row">No matching notes</td></tr>';
+    return;
+  }
+
+  const rows = records
+    .map((record) => {
+      const key = rowKey(record);
+      const expanded = state.expanded.has(key);
+      const status = record.status || "unknown";
+
+      const mainRow = `
+        <tr>
+          <td>
+            <button class="expand-btn" data-key="${escapeHtml(key)}" aria-label="Toggle details">${expanded ? "−" : "+"}</button>
+          </td>
+          <td class="mono">${escapeHtml(record.reportRefId || "—")}</td>
+          <td>${escapeHtml(record.mrn || "—")}</td>
+          <td class="mono">${escapeHtml(record.userId || "—")}</td>
+          <td class="mono">${escapeHtml(record.organizationId || "—")}</td>
+          <td><span class="badge ${badgeClass(status)}">${escapeHtml(status)}</span></td>
+          <td>${billingPeriodLabel(record)}</td>
+          <td>${escapeHtml(monitoringLabel(record))}</td>
+          <td>${formatTimeWithIst(record.createdAt)}</td>
+          <td>${formatTime(record.updatedAt)}</td>
+        </tr>
+      `;
+
+      const detailRow = expanded
+        ? `<tr class="history-row"><td colspan="10">${renderHistory(record)}</td></tr>`
+        : "";
+
+      return mainRow + detailRow;
+    })
+    .join("");
+
+  $("records-body").innerHTML = rows;
+
+  document.querySelectorAll(".expand-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.key;
+      if (state.expanded.has(key)) state.expanded.delete(key);
+      else state.expanded.add(key);
+      render();
+    });
+  });
+}
+
+function bindEvents() {
+  $("refresh-btn").addEventListener("click", loadRecords);
+  $("status-filter").addEventListener("change", loadRecords);
+  $("org-filter").addEventListener("change", loadRecords);
+  $("user-filter").addEventListener("change", loadRecords);
+  $("report-filter").addEventListener("change", loadRecords);
+  $("from-date").addEventListener("change", loadRecords);
+  $("to-date").addEventListener("change", loadRecords);
+  $("search-input").addEventListener("input", render);
+}
+
+async function init() {
+  bindEvents();
+  await loadConfig();
+  await loadRecords();
+}
+
+init();

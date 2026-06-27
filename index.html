@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CPT Notes Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside>
+    <div class="logo-container">
+      <div class="logo-icon">C</div>
+      <div class="logo-text">CPT Notes</div>
+    </div>
+
+    <div class="nav-section-title">Filters</div>
+    <div class="filter-group">
+      <label for="status-filter">Status</label>
+      <select id="status-filter">
+        <option value="">All statuses</option>
+        <option value="IN_PROGRESS">IN_PROGRESS</option>
+        <option value="GENERATED">GENERATED</option>
+        <option value="LOW">LOW</option>
+        <option value="FAILED">FAILED</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="org-filter">Organization ID</label>
+      <input id="org-filter" type="text" placeholder="Optional org UUID">
+    </div>
+    <div class="filter-group">
+      <label for="user-filter">User ID</label>
+      <input id="user-filter" type="text" placeholder="Optional user UUID">
+    </div>
+    <div class="filter-group">
+      <label for="report-filter">Report Ref ID</label>
+      <input id="report-filter" type="text" placeholder="Optional report UUID">
+    </div>
+    <div class="filter-group">
+      <label for="from-date">Created from</label>
+      <input id="from-date" type="date">
+    </div>
+    <div class="filter-group">
+      <label for="to-date">Created to</label>
+      <input id="to-date" type="date">
+    </div>
+
+    <button id="refresh-btn" class="btn-primary">Refresh</button>
+
+    <div class="sidebar-footer">
+      <div id="mdb-endpoint-label">MDB: loading…</div>
+      <div id="last-updated">Not loaded yet</div>
+    </div>
+  </aside>
+
+  <main>
+    <header>
+      <div class="header-title">
+        <h1>CPT 99091 Notes</h1>
+        <p>Track MDB status, history, and S3 locations for <code>dozee.notes</code></p>
+      </div>
+      <div class="search-box">
+        <input id="search-input" type="search" placeholder="Search MRN, report ref, user, org, failure…">
+      </div>
+    </header>
+
+    <div class="metrics-summary-grid">
+      <div class="summary-card glass">
+        <div class="summary-card-header">
+          <span class="summary-card-title">Total</span>
+        </div>
+        <div class="summary-card-value" id="stat-total">—</div>
+      </div>
+      <div class="summary-card glass">
+        <div class="summary-card-header">
+          <span class="summary-card-title">In Progress</span>
+        </div>
+        <div class="summary-card-value status-in-progress" id="stat-in-progress">—</div>
+      </div>
+      <div class="summary-card glass">
+        <div class="summary-card-header">
+          <span class="summary-card-title">Generated</span>
+        </div>
+        <div class="summary-card-value status-generated" id="stat-generated">—</div>
+      </div>
+      <div class="summary-card glass">
+        <div class="summary-card-header">
+          <span class="summary-card-title">Low</span>
+        </div>
+        <div class="summary-card-value status-low" id="stat-low">—</div>
+      </div>
+      <div class="summary-card glass">
+        <div class="summary-card-header">
+          <span class="summary-card-title">Failed</span>
+        </div>
+        <div class="summary-card-value status-failed" id="stat-failed">—</div>
+      </div>
+    </div>
+
+    <div id="error-banner" class="error-banner hidden"></div>
+
+    <section class="table-panel glass">
+      <div class="table-panel-header">
+        <h2>Reports</h2>
+        <span id="visible-count" class="muted">0 shown</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Report Ref</th>
+              <th>MRN</th>
+              <th>User</th>
+              <th>Organization</th>
+              <th>Status</th>
+              <th>Billing Period</th>
+              <th>Monitoring</th>
+              <th>Created</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody id="records-body">
+            <tr><td colspan="10" class="empty-row">Loading notes…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js?v=1"></script>
+</body>
+</html>
