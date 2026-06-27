@@ -7,11 +7,51 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
-MDB_ENDPOINT = "http://mdb-sit.dozee.int"
-MDB_NOTES_PATH = "/api/dozee/notes/query"
 PORT = 8770
 DEFAULT_LIMIT = "2000"
+
+MDB_ENDPOINT = ""
+MDB_NOTES_PATH = ""
+
+
+def _load_env_file(path: Path, *, override: bool) -> None:
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+        if override:
+            os.environ[key] = value
+        else:
+            os.environ.setdefault(key, value)
+
+
+def load_env() -> None:
+    root = Path(__file__).resolve().parent
+    stage = os.getenv("STAGE", "sit")
+    _load_env_file(root / ".env", override=False)
+    _load_env_file(root / f".env.{stage}", override=True)
+
+
+def mdb_notes_query_path() -> str:
+    database = os.getenv("MDB_DATABASE", "dozee")
+    collection = os.getenv("MDB_NOTES_COLLECTION", "notes")
+    return f"/api/{database}/{collection}/query"
+
+
+def init_config() -> None:
+    global MDB_ENDPOINT, MDB_NOTES_PATH
+    load_env()
+    MDB_ENDPOINT = os.getenv("MDB_ENDPOINT", "http://mdb-sit.dozee.int")
+    MDB_NOTES_PATH = mdb_notes_query_path()
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
@@ -94,6 +134,7 @@ def bind_server(start_port: int, attempts: int = 10) -> tuple[ThreadingHTTPServe
 
 
 def main():
+    init_config()
     server, port = bind_server(PORT)
     if port != PORT:
         print(f"Port {PORT} is in use; using {port} instead.")

@@ -11,7 +11,7 @@ python3 server.py
 
 Open [http://localhost:8770](http://localhost:8770) or [https://cpt-dash.dozee.int](https://cpt-dash.dozee.int) (via Caddy; see `../caddy/README.md`).
 
-Edit `MDB_ENDPOINT` at the top of `server.py` to point at a different environment.
+Set `STAGE=sit` (default) or `STAGE=prod` and edit `.env` / `.env.sit` for `MDB_ENDPOINT` and `MDB_NOTES_COLLECTION`.
 
 The server serves static files and proxies MDB queries at `/api/cpt-notes` to avoid browser CORS issues.
 
@@ -28,7 +28,10 @@ The server serves static files and proxies MDB queries at `/api/cpt-notes` to av
 ## Data source
 
 ```
-GET {MDB_ENDPOINT}/api/dozee/notes/query
+GET {MDB_ENDPOINT}{MDB_NOTES_PATH}
+```
+
+(`MDB_NOTES_PATH` defaults to `/api/dozee/notes/query` in prod and `/api/dozee/notes-sit/query` in sit.)
 ```
 
 Unlike the public API (`/api/v1/cpt/notes/*`), this dashboard reads raw MDB documents — S3 URIs and full history are not stripped.
