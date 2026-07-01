@@ -277,6 +277,11 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
 .badge-low { background: rgba(251, 191, 36, 0.12); color: #fcd34d; }
 .badge-failed { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
 .badge-edited { background: rgba(14, 165, 233, 0.15); color: #7dd3fc; }
+.badge-np-assigned { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
+.badge-np-review { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.badge-np-rejected { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+.badge-physician-review { background: rgba(168, 85, 247, 0.15); color: #d8b4fe; }
+.badge-completed { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 .badge-unpaired { background: rgba(107, 114, 128, 0.2); color: #d1d5db; }
 
 .expand-btn {

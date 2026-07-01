@@ -9,6 +9,11 @@ const STATUS_CLASS = {
   LOW: "badge-low",
   FAILED: "badge-failed",
   EDITED: "badge-edited",
+  NP_ASSIGNED: "badge-np-assigned",
+  NP_IN_REVIEW: "badge-np-review",
+  NP_REJECTED: "badge-np-rejected",
+  PHYSICIAN_REVIEW: "badge-physician-review",
+  COMPLETED: "badge-completed",
 };
 
 const TAG_CLASS = {
@@ -17,6 +22,11 @@ const TAG_CLASS = {
   LOW: "tag-warning",
   FAILED: "tag-danger",
   EDITED: "tag-muted",
+  NP_ASSIGNED: "tag-muted",
+  NP_IN_REVIEW: "tag-warning",
+  NP_REJECTED: "tag-danger",
+  PHYSICIAN_REVIEW: "tag-warning",
+  COMPLETED: "tag-success",
 };
 
 function $(id) {
@@ -278,6 +288,17 @@ function renderHistory(record) {
             const htmlUrl = entry.htmlS3Url
               ? `<div class="mono s3-uri">${escapeHtml(entry.htmlS3Url)}</div>`
               : "";
+            const npAssigned = entry.npName
+              ? `<div>NP: ${escapeHtml(entry.npName)}</div>`
+              : "";
+            const npRejected =
+              entry.rejectReason || entry.rejectedBy || entry.rejectedByRole
+                ? `
+                  ${entry.rejectReason ? `<div>Reason: ${escapeHtml(entry.rejectReason)}</div>` : ""}
+                  ${entry.rejectedBy ? `<div>Rejected by: ${escapeHtml(entry.rejectedBy)}</div>` : ""}
+                  ${entry.rejectedByRole ? `<div>Role: ${escapeHtml(entry.rejectedByRole)}</div>` : ""}
+                `
+                : "";
 
             return `
               <div class="timeline-item timeline-item-cpt">
@@ -288,6 +309,8 @@ function renderHistory(record) {
                 <div class="timeline-detail">
                   ${editedBy}
                   ${htmlUrl}
+                  ${npAssigned}
+                  ${npRejected}
                 </div>
               </div>
             `;
