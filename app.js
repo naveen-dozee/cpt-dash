@@ -141,6 +141,7 @@ function buildQueryParams() {
   const orgId = $("org-filter").value.trim();
   const userId = $("user-filter").value.trim();
   const reportRefId = $("report-filter").value.trim();
+  const mrn = $("mrn-filter").value.trim();
   const fromDate = $("from-date").value;
   const toDate = $("to-date").value;
 
@@ -148,6 +149,7 @@ function buildQueryParams() {
   if (orgId) params.append("filter", `OrganizationId:${orgId}`);
   if (userId) params.append("filter", `UserId:${userId}`);
   if (reportRefId) params.append("filter", `ReportRefId:${reportRefId}`);
+  if (mrn) params.append("filter", `Mrn:${mrn}`);
   if (fromDate || toDate) {
     const start = toUtcIsoDate(fromDate || "1970-01-01");
     const end = toUtcIsoDate(toDate || "2099-12-31", true);
@@ -419,6 +421,7 @@ function bindEvents() {
   $("org-filter").addEventListener("change", loadRecords);
   $("user-filter").addEventListener("change", loadRecords);
   $("report-filter").addEventListener("change", loadRecords);
+  $("mrn-filter").addEventListener("change", loadRecords);
   $("from-date").addEventListener("change", loadRecords);
   $("to-date").addEventListener("change", loadRecords);
   $("search-input").addEventListener("input", render);

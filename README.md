@@ -18,7 +18,7 @@ The server serves static files and proxies MDB queries at `/api/cpt-notes` to av
 ## Features
 
 - Summary counts for `IN_PROGRESS`, `GENERATED`, `LOW`, and `FAILED`
-- Filter by status, organization ID, user ID, report ref ID, and created date range
+- Filter by status, organization ID, user ID, report ref ID, MRN, and created date range
 - Search across MRN, report ref, user, org, failure reason, S3 URIs
 - Expandable rows with:
   - Full `history` timeline (`status`, `timestamp`, `editedBy`, `htmlS3Url` for edits)
