@@ -100,22 +100,28 @@ function tagClass(status) {
   return TAG_CLASS[status] || "tag-muted";
 }
 
+function noteField(record, pascalKey, legacyKey) {
+  const value = record[pascalKey];
+  if (value != null && value !== "") return value;
+  return record[legacyKey];
+}
+
 function rowKey(record) {
-  return record.reportRefId || "";
+  return noteField(record, "ReportRefId", "reportRefId") || "";
 }
 
 function billingPeriodLabel(record) {
-  const bp = record.billingPeriod;
+  const bp = noteField(record, "BillingPeriod", "billingPeriod");
   if (!bp || typeof bp !== "object") return "—";
-  const start = formatDateOnly(bp.start);
-  const end = formatDateOnly(bp.end);
+  const start = formatDateOnly(bp.Start ?? bp.start);
+  const end = formatDateOnly(bp.End ?? bp.end);
   if (start === "—" && end === "—") return "—";
   return `${start} → ${end}`;
 }
 
 function monitoringLabel(record) {
-  const minutes = record.monitoringMinutes;
-  const days = record.vitalsValidDays;
+  const minutes = noteField(record, "MonitoringMinutes", "monitoringMinutes");
+  const days = noteField(record, "VitalsValidDays", "vitalsValidDays");
   if (minutes == null && days == null) return "—";
   const parts = [];
   if (minutes != null) parts.push(`${minutes} min`);
@@ -138,16 +144,16 @@ function buildQueryParams() {
   const fromDate = $("from-date").value;
   const toDate = $("to-date").value;
 
-  if (status) params.append("filter", `status:${status}`);
-  if (orgId) params.append("filter", `organizationId:${orgId}`);
-  if (userId) params.append("filter", `userId:${userId}`);
-  if (reportRefId) params.append("filter", `reportRefId:${reportRefId}`);
+  if (status) params.append("filter", `Status:${status}`);
+  if (orgId) params.append("filter", `OrganizationId:${orgId}`);
+  if (userId) params.append("filter", `UserId:${userId}`);
+  if (reportRefId) params.append("filter", `ReportRefId:${reportRefId}`);
   if (fromDate || toDate) {
     const start = toUtcIsoDate(fromDate || "1970-01-01");
     const end = toUtcIsoDate(toDate || "2099-12-31", true);
-    params.append("datespan", `createdAt:${start}...${end}`);
+    params.append("datespan", `CreatedAt:${start}...${end}`);
   }
-  params.append("order", "createdAt:desc");
+  params.append("order", "CreatedAt:desc");
   params.append("limit", "2000");
   return params;
 }
@@ -194,23 +200,23 @@ function filteredRecords() {
   return state.records
     .slice()
     .sort((a, b) => {
-      const aTime = a.createdAt || "";
-      const bTime = b.createdAt || "";
+      const aTime = noteField(a, "CreatedAt", "createdAt") || "";
+      const bTime = noteField(b, "CreatedAt", "createdAt") || "";
       return String(bTime).localeCompare(String(aTime));
     })
     .filter((record) => {
       if (!search) return true;
       const haystack = [
-        record.reportRefId,
-        record.mrn,
-        record.userId,
-        record.organizationId,
-        record.status,
-        record.failureReason,
-        record.activityId,
-        record.existingReportRefId,
-        record.s3Url,
-        record.htmlS3Url,
+        noteField(record, "ReportRefId", "reportRefId"),
+        noteField(record, "Mrn", "mrn"),
+        noteField(record, "UserId", "userId"),
+        noteField(record, "OrganizationId", "organizationId"),
+        noteField(record, "Status", "status"),
+        noteField(record, "FailureReason", "failureReason"),
+        noteField(record, "ActivityId", "activityId"),
+        noteField(record, "ExistingReportRefId", "existingReportRefId"),
+        noteField(record, "S3Url", "s3Url"),
+        noteField(record, "HtmlS3Url", "htmlS3Url"),
       ]
         .filter(Boolean)
         .join(" ")
@@ -228,7 +234,7 @@ function updateStats(records) {
     FAILED: 0,
   };
   for (const record of records) {
-    const status = record.status;
+    const status = noteField(record, "Status", "status");
     if (status in counts) counts[status] += 1;
   }
   $("stat-total").textContent = counts.total;
@@ -274,35 +280,36 @@ function renderEligibility(details) {
 }
 
 function renderHistory(record) {
-  const history = Array.isArray(record.history) ? [...record.history].reverse() : [];
+  const historyRaw = noteField(record, "History", "history");
+  const history = Array.isArray(historyRaw) ? [...historyRaw].reverse() : [];
   const historyBlock = history.length
     ? `
       <div class="history-panel">
         <h3>History (${history.length} events)</h3>
         <div class="timeline">${history
           .map((entry) => {
-            const status = entry.status || "—";
-            const editedBy = entry.editedBy
-              ? `<div>Edited by: ${renderEditedBy(entry.editedBy)}</div>`
+            const status = entry.Status || entry.status || "—";
+            const editedBy = entry.EditedBy || entry.editedBy
+              ? `<div>Edited by: ${renderEditedBy(entry.EditedBy || entry.editedBy)}</div>`
               : "";
-            const htmlUrl = entry.htmlS3Url
-              ? `<div class="mono s3-uri">${escapeHtml(entry.htmlS3Url)}</div>`
+            const htmlUrl = entry.HtmlS3Url || entry.htmlS3Url
+              ? `<div class="mono s3-uri">${escapeHtml(entry.HtmlS3Url || entry.htmlS3Url)}</div>`
               : "";
-            const npAssigned = entry.npName
-              ? `<div>NP: ${escapeHtml(entry.npName)}</div>`
+            const npAssigned = entry.NpName || entry.npName
+              ? `<div>NP: ${escapeHtml(entry.NpName || entry.npName)}</div>`
               : "";
             const npRejected =
-              entry.rejectReason || entry.rejectedBy || entry.rejectedByRole
+              entry.RejectReason || entry.rejectReason || entry.RejectedBy || entry.rejectedBy || entry.RejectedByRole || entry.rejectedByRole
                 ? `
-                  ${entry.rejectReason ? `<div>Reason: ${escapeHtml(entry.rejectReason)}</div>` : ""}
-                  ${entry.rejectedBy ? `<div>Rejected by: ${escapeHtml(entry.rejectedBy)}</div>` : ""}
-                  ${entry.rejectedByRole ? `<div>Role: ${escapeHtml(entry.rejectedByRole)}</div>` : ""}
+                  ${entry.RejectReason || entry.rejectReason ? `<div>Reason: ${escapeHtml(entry.RejectReason || entry.rejectReason)}</div>` : ""}
+                  ${entry.RejectedBy || entry.rejectedBy ? `<div>Rejected by: ${escapeHtml(entry.RejectedBy || entry.rejectedBy)}</div>` : ""}
+                  ${entry.RejectedByRole || entry.rejectedByRole ? `<div>Role: ${escapeHtml(entry.RejectedByRole || entry.rejectedByRole)}</div>` : ""}
                 `
                 : "";
 
             return `
               <div class="timeline-item timeline-item-cpt">
-                <div class="timeline-time">${formatTimeWithIst(entry.timestamp)}</div>
+                <div class="timeline-time">${formatTimeWithIst(entry.Timestamp || entry.timestamp)}</div>
                 <div class="timeline-event">
                   <span class="badge ${badgeClass(status)}">${escapeHtml(status)}</span>
                 </div>
@@ -326,27 +333,27 @@ function renderHistory(record) {
       <div class="detail-grid">
         <div class="detail-row">
           <span class="muted">Activity ID</span>
-          <div class="mono">${escapeHtml(record.activityId || "—")}</div>
+          <div class="mono">${escapeHtml(noteField(record, "ActivityId", "activityId") || "—")}</div>
         </div>
         <div class="detail-row">
           <span class="muted">Failure reason</span>
-          <div>${escapeHtml(record.failureReason || "—")}</div>
+          <div>${escapeHtml(noteField(record, "FailureReason", "failureReason") || "—")}</div>
         </div>
         <div class="detail-row">
           <span class="muted">Existing report ref</span>
-          <div class="mono">${escapeHtml(record.existingReportRefId || "—")}</div>
+          <div class="mono">${escapeHtml(noteField(record, "ExistingReportRefId", "existingReportRefId") || "—")}</div>
         </div>
         <div class="detail-row">
           <span class="muted">Signing date</span>
-          <div>${formatTime(record.signingDate)}</div>
+          <div>${formatTime(noteField(record, "SigningDate", "signingDate"))}</div>
         </div>
       </div>
       <h3 class="detail-subheading">S3 Locations</h3>
-      ${renderS3Link("DOCX (s3Url)", record.s3Url)}
-      ${renderS3Link("HTML cache (htmlS3Url)", record.htmlS3Url)}
-      ${renderS3Link("HTML source DOCX (htmlSourceDocxUrl)", record.htmlSourceDocxUrl)}
+      ${renderS3Link("DOCX (S3Url)", noteField(record, "S3Url", "s3Url"))}
+      ${renderS3Link("HTML cache (HtmlS3Url)", noteField(record, "HtmlS3Url", "htmlS3Url"))}
+      ${renderS3Link("HTML source DOCX (HtmlSourceDocxUrl)", noteField(record, "HtmlSourceDocxUrl", "htmlSourceDocxUrl"))}
       <h3 class="detail-subheading">Eligibility</h3>
-      ${renderEligibility(record.eligibilityDetails)}
+      ${renderEligibility(noteField(record, "EligibilityDetails", "eligibilityDetails"))}
     </div>
   `;
 
@@ -367,22 +374,22 @@ function render() {
     .map((record) => {
       const key = rowKey(record);
       const expanded = state.expanded.has(key);
-      const status = record.status || "unknown";
+      const status = noteField(record, "Status", "status") || "unknown";
 
       const mainRow = `
         <tr>
           <td>
             <button class="expand-btn" data-key="${escapeHtml(key)}" aria-label="Toggle details">${expanded ? "−" : "+"}</button>
           </td>
-          <td class="mono">${escapeHtml(record.reportRefId || "—")}</td>
-          <td>${escapeHtml(record.mrn || "—")}</td>
-          <td class="mono">${escapeHtml(record.userId || "—")}</td>
-          <td class="mono">${escapeHtml(record.organizationId || "—")}</td>
+          <td class="mono">${escapeHtml(noteField(record, "ReportRefId", "reportRefId") || "—")}</td>
+          <td>${escapeHtml(noteField(record, "Mrn", "mrn") || "—")}</td>
+          <td class="mono">${escapeHtml(noteField(record, "UserId", "userId") || "—")}</td>
+          <td class="mono">${escapeHtml(noteField(record, "OrganizationId", "organizationId") || "—")}</td>
           <td><span class="badge ${badgeClass(status)}">${escapeHtml(status)}</span></td>
           <td>${billingPeriodLabel(record)}</td>
           <td>${escapeHtml(monitoringLabel(record))}</td>
-          <td>${formatTimeWithIst(record.createdAt)}</td>
-          <td>${formatTime(record.updatedAt)}</td>
+          <td>${formatTimeWithIst(noteField(record, "CreatedAt", "createdAt"))}</td>
+          <td>${formatTime(noteField(record, "UpdatedAt", "updatedAt"))}</td>
         </tr>
       `;
 
