@@ -214,6 +214,25 @@ header {
 
 .muted { color: var(--text-muted); font-size: 0.85rem; }
 
+.note-links {
+  margin-top: 6px;
+}
+
+.note-link {
+  color: var(--accent-orange);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.note-link:hover {
+  text-decoration: underline;
+}
+
+.report-ref-cell .note-links {
+  margin-top: 4px;
+}
+
 .table-wrap { overflow-x: auto; }
 
 table {

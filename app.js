@@ -165,8 +165,9 @@ async function loadConfig() {
     const res = await fetch("/api/config");
     if (!res.ok) return;
     const data = await res.json();
+    const stage = (data.stage || "sit").toUpperCase();
     const notesPath = data.mdb_notes_path || "/api/dozee/notes/query";
-    $("mdb-endpoint-label").textContent = `MDB: ${data.mdb_endpoint}${notesPath}`;
+    $("mdb-endpoint-label").textContent = `${stage} · MDB: ${data.mdb_endpoint}${notesPath}`;
   } catch {
     $("mdb-endpoint-label").textContent = "MDB: proxy unavailable";
   }
@@ -244,6 +245,29 @@ function updateStats(records) {
   $("stat-generated").textContent = counts.GENERATED;
   $("stat-low").textContent = counts.LOW;
   $("stat-failed").textContent = counts.FAILED;
+}
+
+function noteHasReport(record) {
+  const status = noteField(record, "Status", "status");
+  if (status === "IN_PROGRESS" || status === "FAILED") return false;
+  return Boolean(noteField(record, "S3Url", "s3Url"));
+}
+
+function htmlViewUrl(reportRefId) {
+  return `/api/cpt-notes/${encodeURIComponent(reportRefId)}/html/view`;
+}
+
+function renderNoteLinks(record) {
+  const reportRefId = noteField(record, "ReportRefId", "reportRefId");
+  if (!reportRefId || !noteHasReport(record)) {
+    return "";
+  }
+  const href = htmlViewUrl(reportRefId);
+  return `
+    <div class="note-links">
+      <a class="note-link" href="${escapeHtml(href)}" target="_blank" rel="noopener">View HTML</a>
+    </div>
+  `;
 }
 
 function renderS3Link(label, uri) {
@@ -350,6 +374,8 @@ function renderHistory(record) {
           <div>${formatTime(noteField(record, "SigningDate", "signingDate"))}</div>
         </div>
       </div>
+      <h3 class="detail-subheading">Report</h3>
+      ${renderNoteLinks(record) || '<p class="muted">No report available</p>'}
       <h3 class="detail-subheading">S3 Locations</h3>
       ${renderS3Link("DOCX (S3Url)", noteField(record, "S3Url", "s3Url"))}
       ${renderS3Link("HTML cache (HtmlS3Url)", noteField(record, "HtmlS3Url", "htmlS3Url"))}
@@ -383,7 +409,10 @@ function render() {
           <td>
             <button class="expand-btn" data-key="${escapeHtml(key)}" aria-label="Toggle details">${expanded ? "−" : "+"}</button>
           </td>
-          <td class="mono">${escapeHtml(noteField(record, "ReportRefId", "reportRefId") || "—")}</td>
+          <td class="mono report-ref-cell">
+            <div>${escapeHtml(noteField(record, "ReportRefId", "reportRefId") || "—")}</div>
+            ${renderNoteLinks(record)}
+          </td>
           <td>${escapeHtml(noteField(record, "Mrn", "mrn") || "—")}</td>
           <td class="mono">${escapeHtml(noteField(record, "UserId", "userId") || "—")}</td>
           <td class="mono">${escapeHtml(noteField(record, "OrganizationId", "organizationId") || "—")}</td>
