@@ -138,6 +138,7 @@ function toUtcIsoDate(dateStr, endOfDay = false) {
 function buildQueryParams() {
   const params = new URLSearchParams();
   const status = $("status-filter").value;
+  const cptCode = $("cpt-filter").value;
   const orgId = $("org-filter").value.trim();
   const userId = $("user-filter").value.trim();
   const reportRefId = $("report-filter").value.trim();
@@ -146,6 +147,7 @@ function buildQueryParams() {
   const toDate = $("to-date").value;
 
   if (status) params.append("filter", `Status:${status}`);
+  if (cptCode) params.append("filter", `CptCode:${cptCode}`);
   if (orgId) params.append("filter", `OrganizationId:${orgId}`);
   if (userId) params.append("filter", `UserId:${userId}`);
   if (reportRefId) params.append("filter", `ReportRefId:${reportRefId}`);
@@ -175,7 +177,7 @@ async function loadConfig() {
 
 async function loadRecords() {
   $("error-banner").classList.add("hidden");
-  $("records-body").innerHTML = '<tr><td colspan="10" class="empty-row">Loading notes…</td></tr>';
+  $("records-body").innerHTML = '<tr><td colspan="11" class="empty-row">Loading notes…</td></tr>';
 
   try {
     const res = await fetch(`/api/cpt-notes?${buildQueryParams().toString()}`);
@@ -191,7 +193,7 @@ async function loadRecords() {
     state.records = [];
     $("error-banner").textContent = `Failed to load CPT notes: ${err.message}`;
     $("error-banner").classList.remove("hidden");
-    $("records-body").innerHTML = '<tr><td colspan="10" class="empty-row">No data</td></tr>';
+    $("records-body").innerHTML = '<tr><td colspan="11" class="empty-row">No data</td></tr>';
     updateStats([]);
     $("visible-count").textContent = "0 shown";
   }
@@ -212,6 +214,7 @@ function filteredRecords() {
       const haystack = [
         noteField(record, "ReportRefId", "reportRefId"),
         noteField(record, "Mrn", "mrn"),
+        noteField(record, "CptCode", "cptCode"),
         noteField(record, "UserId", "userId"),
         noteField(record, "OrganizationId", "organizationId"),
         noteField(record, "Status", "status"),
@@ -394,7 +397,7 @@ function render() {
   $("visible-count").textContent = `${records.length} shown`;
 
   if (!records.length) {
-    $("records-body").innerHTML = '<tr><td colspan="10" class="empty-row">No matching notes</td></tr>';
+    $("records-body").innerHTML = '<tr><td colspan="11" class="empty-row">No matching notes</td></tr>';
     return;
   }
 
@@ -414,6 +417,7 @@ function render() {
             ${renderNoteLinks(record)}
           </td>
           <td>${escapeHtml(noteField(record, "Mrn", "mrn") || "—")}</td>
+          <td>${escapeHtml(noteField(record, "CptCode", "cptCode") || "—")}</td>
           <td class="mono">${escapeHtml(noteField(record, "UserId", "userId") || "—")}</td>
           <td class="mono">${escapeHtml(noteField(record, "OrganizationId", "organizationId") || "—")}</td>
           <td><span class="badge ${badgeClass(status)}">${escapeHtml(status)}</span></td>
@@ -425,7 +429,7 @@ function render() {
       `;
 
       const detailRow = expanded
-        ? `<tr class="history-row"><td colspan="10">${renderHistory(record)}</td></tr>`
+        ? `<tr class="history-row"><td colspan="11">${renderHistory(record)}</td></tr>`
         : "";
 
       return mainRow + detailRow;
@@ -447,6 +451,7 @@ function render() {
 function bindEvents() {
   $("refresh-btn").addEventListener("click", loadRecords);
   $("status-filter").addEventListener("change", loadRecords);
+  $("cpt-filter").addEventListener("change", loadRecords);
   $("org-filter").addEventListener("change", loadRecords);
   $("user-filter").addEventListener("change", loadRecords);
   $("report-filter").addEventListener("change", loadRecords);

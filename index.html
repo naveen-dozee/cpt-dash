@@ -25,6 +25,18 @@
       </select>
     </div>
     <div class="filter-group">
+      <label for="cpt-filter">CPT Code</label>
+      <select id="cpt-filter">
+        <option value="">All CPT codes</option>
+        <option value="99091">99091</option>
+        <option value="99424">99424</option>
+        <option value="99425">99425</option>
+        <option value="99457">99457</option>
+        <option value="99458">99458</option>
+        <option value="99484">99484</option>
+      </select>
+    </div>
+    <div class="filter-group">
       <label for="org-filter">Organization ID</label>
       <input id="org-filter" type="text" placeholder="Optional org UUID">
     </div>
@@ -60,11 +72,11 @@
   <main>
     <header>
       <div class="header-title">
-        <h1>CPT 99091 Notes</h1>
+        <h1>CPT Notes</h1>
         <p>Track MDB status, history, and S3 locations for <code>dozee.notes</code></p>
       </div>
       <div class="search-box">
-        <input id="search-input" type="search" placeholder="Search MRN, report ref, user, org, failure…">
+        <input id="search-input" type="search" placeholder="Search CPT, MRN, report ref, user, org, failure…">
       </div>
     </header>
 
@@ -115,6 +127,7 @@
               <th></th>
               <th>Report Ref</th>
               <th>MRN</th>
+              <th>CPT Code</th>
               <th>User</th>
               <th>Organization</th>
               <th>Status</th>
@@ -125,13 +138,13 @@
             </tr>
           </thead>
           <tbody id="records-body">
-            <tr><td colspan="10" class="empty-row">Loading notes…</td></tr>
+            <tr><td colspan="11" class="empty-row">Loading notes…</td></tr>
           </tbody>
         </table>
       </div>
     </section>
   </main>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
