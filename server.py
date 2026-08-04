@@ -21,18 +21,19 @@ MDB_ENDPOINT = ""
 MDB_NOTES_PATH = ""
 API_ENDPOINT = ""
 API_TOKEN = ""
+API_KEY = ""
 STAGE = "sit"
 
 STAGE_DEFAULTS = {
     "sit": {
         "MDB_ENDPOINT": "http://mdb.dozee.int",
         "MDB_NOTES_COLLECTION": "notes-sit",
-        "API_ENDPOINT": "http://api-sit.dozee.int",
+        "API_ENDPOINT": "https://api-sit.dozee.cloud",
     },
     "prod": {
         "MDB_ENDPOINT": "http://mdb.dozee.int",
         "MDB_NOTES_COLLECTION": "notes",
-        "API_ENDPOINT": "http://api.dozee.int",
+        "API_ENDPOINT": "https://api.dozee.cloud",
     },
 }
 
@@ -74,12 +75,13 @@ def mdb_notes_query_path() -> str:
 
 
 def init_config() -> None:
-    global MDB_ENDPOINT, MDB_NOTES_PATH, API_ENDPOINT, API_TOKEN
+    global MDB_ENDPOINT, MDB_NOTES_PATH, API_ENDPOINT, API_TOKEN, API_KEY
     load_env()
     MDB_ENDPOINT = os.getenv("MDB_ENDPOINT", stage_default("MDB_ENDPOINT"))
     MDB_NOTES_PATH = mdb_notes_query_path()
     API_ENDPOINT = os.getenv("API_ENDPOINT", stage_default("API_ENDPOINT")).rstrip("/")
     API_TOKEN = os.getenv("API_TOKEN", "")
+    API_KEY = os.getenv("API_KEY", "")
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
@@ -138,7 +140,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def _proxy_html_view(self, report_ref_id: str) -> None:
         url = f"{API_ENDPOINT}/api/v1/cpt/notes/{report_ref_id}/html/get"
         headers = {"Accept": "application/json"}
-        if API_TOKEN:
+        if API_KEY:
+            headers["x-api-key"] = API_KEY
+        elif API_TOKEN:
             headers["Authorization"] = f"Bearer {API_TOKEN}"
         try:
             req = urllib.request.Request(url, headers=headers)
