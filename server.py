@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Lightweight static file server with MDB query proxy for the CPT notes dashboard."""
 
+import errno
 import json
 import os
 import re
+import signal
+import subprocess
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -16,6 +20,7 @@ HTML_VIEW_RE = re.compile(
     r"^/api/cpt-notes/([0-9a-f-]{36})/html/view$",
     re.IGNORECASE,
 )
+SCRIPT_PATH = Path(__file__).resolve()
 
 MDB_ENDPOINT = ""
 MDB_NOTES_PATH = ""
@@ -199,31 +204,97 @@ def _wrap_html_fragment(fragment: str, report_ref_id: str) -> str:
 """
 
 
-def bind_server(start_port: int, attempts: int = 10) -> tuple[ThreadingHTTPServer, int]:
-    last_error = None
-    for offset in range(attempts):
-        port = start_port + offset
+def _pids_running_this_server() -> set[int]:
+    """PIDs of other python processes running this server.py."""
+    me = os.getpid()
+    try:
+        out = subprocess.check_output(
+            ["pgrep", "-f", str(SCRIPT_PATH)],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return set()
+    pids: set[int] = set()
+    for token in out.split():
         try:
-            server = ThreadingHTTPServer(("", port), DashboardHandler)
-            server.allow_reuse_address = True
-            return server, port
-        except OSError as exc:
-            if exc.errno != 48:  # Address already in use
-                raise
-            last_error = exc
-    raise SystemExit(
-        f"Ports {start_port}-{start_port + attempts - 1} are in use. "
-        f"Stop the existing server or change PORT in server.py.\n"
-        f"Last error: {last_error}"
-    )
+            pid = int(token)
+        except ValueError:
+            continue
+        if pid != me:
+            pids.add(pid)
+    return pids
+
+
+def _pids_listening_on(port: int) -> set[int]:
+    me = os.getpid()
+    try:
+        out = subprocess.check_output(
+            ["lsof", f"-tiTCP:{port}", "-sTCP:LISTEN"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return set()
+    pids: set[int] = set()
+    for token in out.split():
+        try:
+            pid = int(token)
+        except ValueError:
+            continue
+        if pid != me:
+            pids.add(pid)
+    return pids
+
+
+def _kill_pids(pids: set[int], reason: str) -> set[int]:
+    killed: set[int] = set()
+    for pid in sorted(pids):
+        try:
+            os.kill(pid, signal.SIGTERM)
+            killed.add(pid)
+            print(f"Killed previous cpt-dash {reason} pid={pid}")
+        except ProcessLookupError:
+            pass
+        except PermissionError as exc:
+            print(f"Could not kill pid={pid}: {exc}")
+    return killed
+
+
+def kill_other_sessions(port: int = PORT) -> None:
+    """Stop other cpt-dash server.py processes (and anything holding PORT)."""
+    killed = _kill_pids(_pids_running_this_server(), "session")
+    leftover = _pids_listening_on(port) - killed
+    killed |= _kill_pids(leftover, f"listener on :{port}")
+    if not killed:
+        return
+    # Brief wait so the port is releasable before we bind.
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if not _pids_listening_on(port):
+            break
+        time.sleep(0.1)
+
+
+def bind_server(port: int = PORT) -> ThreadingHTTPServer:
+    try:
+        server = ThreadingHTTPServer(("", port), DashboardHandler)
+        server.allow_reuse_address = True
+        return server
+    except OSError as exc:
+        if exc.errno not in (errno.EADDRINUSE, 48):
+            raise
+        raise SystemExit(
+            f"Port {port} is still in use after killing previous sessions.\n"
+            f"Last error: {exc}"
+        ) from exc
 
 
 def main():
     init_config()
-    server, port = bind_server(PORT)
-    if port != PORT:
-        print(f"Port {PORT} is in use; using {port} instead.")
-    print(f"CPT notes dashboard: http://localhost:{port}")
+    kill_other_sessions(PORT)
+    server = bind_server(PORT)
+    print(f"CPT notes dashboard: http://localhost:{PORT}")
     print(f"Stage: {STAGE}")
     print(f"MDB endpoint: {MDB_ENDPOINT}{MDB_NOTES_PATH}")
     print(f"API endpoint: {API_ENDPOINT}")

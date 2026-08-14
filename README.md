@@ -45,3 +45,8 @@ Unlike the public API (`/api/v1/cpt/notes/*`), this dashboard reads raw MDB docu
 | `LOW` | Generated but &lt; 30 monitoring minutes |
 | `FAILED` | Error during generation or validation |
 | `EDITED` | HTML edit saved (includes `editedBy` + versioned `htmlS3Url`) |
+| `NP_ASSIGNED` | Assigned to NP |
+| `NP_IN_REVIEW` | NP reviewing |
+| `NP_REJECTED` | NP rejected (regen allowed) |
+| `PHYSICIAN_REVIEW` | With physician |
+| `COMPLETED` | Workflow closed |
